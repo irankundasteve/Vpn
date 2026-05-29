@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outermost Subtle Shield Shadow / Glow -->
+    <path
+        android:pathData="M54,24 L78,31 C78,59 63,77 54,86 C45,77 30,59 30,31 Z"
+        android:fillColor="#0B000000" />
+
+    <!-- Styled Shield Frame -->
+    <path
+        android:pathData="M54,26 L76,32 C76,57 62,75 54,83 C46,75 32,57 32,32 Z"
+        android:strokeColor="#7A7C85"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#1A000000" />
+
+    <!-- Interlocking Grid / Lattice Lines -->
+    <!-- Connectors -->
+    <path
+        android:pathData="M54,38 L41,48 M54,38 L67,48 M41,48 L54,54 M67,48 L54,54 M54,38 L54,54 M54,54 L43,67 M54,54 L65,67 M41,48 L43,67 M67,48 L65,67 M43,67 L65,67"
+        android:strokeColor="#51535A"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round" />
+
+    <!-- Interlocking Node Points -->
+    <!-- Top Center Node -->
+    <path
+        android:pathData="M54,38m-3,0a3,3 0 1,1 6,0a3,3 0 1,1 -6,0"
+        android:fillColor="#8C8E99" />
+
+    <!-- Mid Left Node -->
+    <path
+        android:pathData="M41,48m-2.5,0a2.5,2.5 0 1,1 5,0a2.5,2.5 0 1,1 -5,0"
+        android:fillColor="#8C8E99" />
+
+    <!-- Mid Right Node -->
+    <path
+        android:pathData="M67,48m-2.5,0a2.5,2.5 0 1,1 5,0a2.5,2.5 0 1,1 -5,0"
+        android:fillColor="#8C8E99" />
+
+    <!-- Bottom Left Node -->
+    <path
+        android:pathData="M43,67m-2.5,0a2.5,2.5 0 1,1 5,0a2.5,2.5 0 1,1 -5,0"
+        android:fillColor="#8C8E99" />
+
+    <!-- Bottom Right Node -->
+    <path
+        android:pathData="M65,67m-2.5,0a2.5,2.5 0 1,1 5,0a2.5,2.5 0 1,1 -5,0"
+        android:fillColor="#8C8E99" />
+
+    <!-- Central Master Pulse Node -->
+    <path
+        android:pathData="M54,54m-4.5,0a4.5,4.5 0 1,1 9,0a4.5,4.5 0 1,1 -9,0"
+        android:fillColor="#FFFFFF" />
+
+</vector>

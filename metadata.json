@@ -1,0 +1,6 @@
+{
+  "name": "Secure Shield",
+  "description": "An adaptive VPN shield dashboard with connection telemetry, public IP exposure check, and environment protocol validation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
