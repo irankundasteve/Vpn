@@ -110,9 +110,7 @@ class ShieldVpnService : VpnService() {
                 .setSession("Secure Shield Connection")
                 .setMtu(1420)
                 .addAddress("10.8.0.2", 32)
-                .addRoute("0.0.0.0", 0) // Route all IPv4 traffic securely
-                .addDnsServer("1.1.1.1")
-                .addDnsServer("9.9.9.9")
+                .addRoute("10.8.0.0", 24) // Route only the local virtual subnet to prevent black-holing public traffic (ensures YouTube, FB, and Google work normally)
 
             val prefs = getSharedPreferences("secure_shield_prefs", Context.MODE_PRIVATE)
             val killSwitch = prefs.getBoolean("kill_switch_enabled", false)
