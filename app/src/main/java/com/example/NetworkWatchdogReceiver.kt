@@ -61,13 +61,9 @@ fun evaluateNetworkAutoAction(context: Context, simulatedSsid: String? = null) {
             action = ShieldVpnService.ACTION_DISCONNECT
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(stopIntent)
-            } else {
-                context.startService(stopIntent)
-            }
+            context.startService(stopIntent)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("NetworkWatchdog", "Could not start disconnect service transition", e)
         }
 
         showWatchdogNotification(

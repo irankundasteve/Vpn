@@ -141,11 +141,7 @@ class MainActivity : ComponentActivity() {
             val stopIntent = Intent(this, ShieldVpnService::class.java).apply {
                 action = ShieldVpnService.ACTION_DISCONNECT
             }
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                startForegroundService(stopIntent)
-            } else {
-                startService(stopIntent)
-            }
+            startService(stopIntent)
         } catch (e: Exception) {
             e.printStackTrace()
         }

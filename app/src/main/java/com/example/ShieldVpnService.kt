@@ -40,17 +40,27 @@ class ShieldVpnService : VpnService() {
 
     override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
+        
+        // Build active notification state and promote service to foreground immediately
+        // to satisfy startForegroundService Contract on Android 8.0+
+        val notification = buildStatusNotification("Secure Shield status transition...")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+
         if (action == ACTION_DISCONNECT) {
             disconnectVpn()
             stopForeground(true)
             stopSelf()
         } else if (action == ACTION_CONNECT) {
-            val serverName = intent.getStringExtra(EXTRA_SERVER_NAME) ?: "Optimal Node"
-            val serverIp = intent.getStringExtra(EXTRA_SERVER_IP) ?: "10.8.0.1"
+            val serverName = intent?.getStringExtra(EXTRA_SERVER_NAME) ?: "Optimal Node"
+            val serverIp = intent?.getStringExtra(EXTRA_SERVER_IP) ?: "10.8.0.1"
 
-            // Build active notification state and promote service to foreground
-            val notification = buildStatusNotification("Requesting tunnel handshake...")
-            startForeground(NOTIFICATION_ID, notification)
+            val updateNotification = buildStatusNotification("Requesting tunnel handshake...")
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(NOTIFICATION_ID, updateNotification)
 
             connectVpn(serverName, serverIp)
         }
