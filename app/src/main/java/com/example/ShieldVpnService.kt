@@ -44,11 +44,7 @@ class ShieldVpnService : VpnService() {
         // Build active notification state and promote service to foreground immediately
         // to satisfy startForegroundService Contract on Android 8.0+
         val notification = buildStatusNotification("Secure Shield status transition...")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        startForeground(NOTIFICATION_ID, notification)
 
         if (action == ACTION_DISCONNECT) {
             disconnectVpn()
