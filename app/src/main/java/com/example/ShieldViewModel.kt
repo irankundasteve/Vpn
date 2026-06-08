@@ -128,7 +128,14 @@ data class ShieldUiState(
     val trustedWifiSsids: Set<String> = emptySet(),
     val inSettingsScreen: Boolean = false,
     val isBlockedStateSimulated: Boolean = false,
-    val simulatedSsid: String = ""
+    val simulatedSsid: String = "",
+    
+    // Low-level custom tunnel configuration & browser
+    val vpnMode: String = "sandbox", // "sandbox", "proxy"
+    val proxyHost: String = "",
+    val proxyPort: Int = 8080,
+    val customWireGuardConfig: String = "",
+    val inBrowserScreen: Boolean = false
 )
 
 class ShieldViewModel(application: Application) : AndroidViewModel(application) {
@@ -534,11 +541,28 @@ class ShieldViewModel(application: Application) : AndroidViewModel(application) 
         val trusted = prefs.getStringSet("trusted_wifis", emptySet()) ?: emptySet()
         val splitPackages = prefs.getStringSet("split_tunnel_packages", emptySet()) ?: emptySet()
 
+        val vpnMode = prefs.getString("vpn_mode", "sandbox") ?: "sandbox"
+        val proxyHost = prefs.getString("proxy_host", "") ?: ""
+        val proxyPort = prefs.getInt("proxy_port", 8080)
+        
+        // Read existing wg config from file system if it exists
+        val context = getApplication<Application>()
+        val configFile = File(context.filesDir, "secureshield_wg.conf")
+        val customConfig = if (configFile.exists()) {
+            try { configFile.readText() } catch (e: Exception) { "" }
+        } else {
+            ""
+        }
+
         _uiState.update { state ->
             state.copy(
                 isKillSwitchEnabled = killSwitch,
                 isSplitTunnelingEnabled = splitTunnel,
-                trustedWifiSsids = trusted
+                trustedWifiSsids = trusted,
+                vpnMode = vpnMode,
+                proxyHost = proxyHost,
+                proxyPort = proxyPort,
+                customWireGuardConfig = customConfig
             )
         }
 
@@ -676,6 +700,37 @@ class ShieldViewModel(application: Application) : AndroidViewModel(application) 
                 e.printStackTrace()
             }
         }
+    }
+
+    fun setVpnMode(mode: String) {
+        prefs.edit().putString("vpn_mode", mode).apply()
+        _uiState.update { it.copy(vpnMode = mode) }
+        restartVpnIfActive()
+    }
+
+    fun setProxyConfig(host: String, port: Int) {
+        prefs.edit().putString("proxy_host", host).putInt("proxy_port", port).apply()
+        _uiState.update { it.copy(proxyHost = host, proxyPort = port) }
+        restartVpnIfActive()
+    }
+
+    fun setCustomWireGuardConfig(config: String) {
+        prefs.edit().putString("custom_wg_config", config).apply()
+        _uiState.update { it.copy(customWireGuardConfig = config) }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>()
+                val configFile = File(context.filesDir, "secureshield_wg.conf")
+                configFile.writeText(config)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        restartVpnIfActive()
+    }
+
+    fun toggleBrowserScreen(show: Boolean) {
+        _uiState.update { it.copy(inBrowserScreen = show) }
     }
 
     override fun onCleared() {

@@ -451,6 +451,30 @@ fun DashboardScreen(
                         enabled = uiState.connectionState != ConnectionState.CONNECTING,
                         onClick = { showServerDialog = true }
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedButton(
+                        onClick = { viewModel.toggleBrowserScreen(true) },
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ProtectedGreen),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ProtectedGreen),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.testTag("launch_browser_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "SECURE WEB BYPASS PORTAL",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 1.sp
+                        )
+                    }
                 }
             }
 
@@ -502,6 +526,25 @@ fun DashboardScreen(
                 uiState = uiState,
                 viewModel = viewModel,
                 onDismissRequest = { viewModel.toggleSettingsScreen(false) }
+            )
+        }
+
+        // Sliding Browser Screen - Full viewport custom setup
+        AnimatedVisibility(
+            visible = uiState.inBrowserScreen,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)
+            ) + fadeIn(),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(durationMillis = 280, easing = FastOutLinearInEasing)
+            ) + fadeOut()
+        ) {
+            SecureWebBypassScreen(
+                uiState = uiState,
+                viewModel = viewModel,
+                onDismissRequest = { viewModel.toggleBrowserScreen(false) }
             )
         }
     }
@@ -2009,9 +2052,472 @@ fun ShieldSettingsScreen(
                     }
                 }
 
+                // Section 5: Low-Level Tunnel Configuration & Custom Client Controls
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderInactive)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Build,
+                                    contentDescription = null,
+                                    tint = ProtectedGreen,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Real Tunnel Protocol Options",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Select low-level routing pathway",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = CyberGreyMuted
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Segmented Tunnel Modes Selection Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("sandbox", "proxy").forEach { mode ->
+                                    val isSelected = uiState.vpnMode == mode
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .background(
+                                                color = if (isSelected) ProtectedGreen.copy(alpha = 0.15f) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .border(
+                                                width = 1.dp,
+                                                color = if (isSelected) ProtectedGreen else BorderInactive,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { viewModel.setVpnMode(mode) }
+                                            .padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = when (mode) {
+                                                "sandbox" -> "Sandbox Loop"
+                                                else -> "Proxy Gateway"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) ProtectedGreen else CyberGreyLight
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Dynamic conditional input display
+                            if (uiState.vpnMode == "proxy") {
+                                Text(
+                                    text = "Route All Web Browsers System-Wide over Proxy",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "When active, web traffic resolves and routes completely via the proxy below, bypassing local WiFi restrictions.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = CyberGreyMedium,
+                                    fontSize = 11.sp
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                var hostVal by remember(uiState.proxyHost) { mutableStateOf(uiState.proxyHost) }
+                                var portVal by remember(uiState.proxyPort) { mutableStateOf(uiState.proxyPort.toString()) }
+
+                                OutlinedTextField(
+                                    value = hostVal,
+                                    onValueChange = { 
+                                        hostVal = it
+                                        viewModel.setProxyConfig(it, portVal.toIntOrNull() ?: 8080)
+                                    },
+                                    label = { Text("Proxy Server Host", color = CyberGreyMedium) },
+                                    placeholder = { Text("e.g., 3.85.124.23", color = CyberGreyMuted) },
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(color = Color.White, fontFamily = FontFamily.Monospace),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        unfocusedBorderColor = BorderInactive,
+                                        focusedBorderColor = ProtectedGreen,
+                                        cursorColor = ProtectedGreen
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().testTag("proxy_host_input")
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = portVal,
+                                    onValueChange = { 
+                                        portVal = it
+                                        viewModel.setProxyConfig(hostVal, it.toIntOrNull() ?: 8080)
+                                    },
+                                    label = { Text("Proxy Port", color = CyberGreyMedium) },
+                                    placeholder = { Text("e.g., 8080 or 3128", color = CyberGreyMuted) },
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(color = Color.White, fontFamily = FontFamily.Monospace),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        unfocusedBorderColor = BorderInactive,
+                                        focusedBorderColor = ProtectedGreen,
+                                        cursorColor = ProtectedGreen
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().testTag("proxy_port_input")
+                                )
+                            } else {
+                                Text(
+                                    text = "Standard Sandbox Loop Active",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ProtectedGreen
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Keeps public traffic routing normally over Wi-Fi so other internet apps do not drop connection, while simulating secure telemetry inside the launcher dashboard.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = CyberGreyMedium,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Custom WireGuard Configuration editor interface
+                            HorizontalDivider(color = BorderInactive, thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                text = "Tunnel Configuration File (.conf)",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Edit secureshield_wg.conf directly on the file system. Paste your personal config below:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = CyberGreyMedium,
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            var wgConfInput by remember(uiState.customWireGuardConfig) { mutableStateOf(uiState.customWireGuardConfig) }
+
+                            OutlinedTextField(
+                                value = wgConfInput,
+                                onValueChange = {
+                                    wgConfInput = it
+                                    viewModel.setCustomWireGuardConfig(it)
+                                },
+                                textStyle = MaterialTheme.typography.bodySmall.copy(
+                                    color = Color.White,
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = 16.sp
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = BorderInactive,
+                                    focusedBorderColor = ProtectedGreen,
+                                    cursorColor = ProtectedGreen
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp)
+                                    .testTag("wireguard_conf_input"),
+                                maxLines = 15
+                            )
+                        }
+                    }
+                }
+
                 item {
                     Spacer(modifier = Modifier.height(24.dp))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun SecureWebBypassScreen(
+    uiState: ShieldUiState,
+    viewModel: ShieldViewModel,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var urlInput by remember { mutableStateOf("https://www.google.com") }
+    var webViewInstance by remember { mutableStateOf<android.webkit.WebView?>(null) }
+    var progress by remember { mutableStateOf(0f) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AmoledBlack)
+            .padding(top = 16.dp)
+            .testTag("browser_screen_viewport")
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onDismissRequest,
+                    modifier = Modifier.testTag("browser_back_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Go Back",
+                        tint = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "SECURE MULTI-PROXY PORTAL",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Real-time bypass over active tunnel route",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = CyberGreyMuted,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            // Quick Launcher Panel
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BorderInactive),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val shortcuts = listOf(
+                        Triple("Google", "https://www.google.com", "🔍"),
+                        Triple("YouTube", "https://m.youtube.com", "📺"),
+                        Triple("Facebook", "https://m.facebook.com", "👥"),
+                        Triple("Wikipedia", "https://en.m.wikipedia.org", "📚")
+                    )
+
+                    shortcuts.forEach { (label, url, emoji) ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clickable {
+                                    urlInput = url
+                                    webViewInstance?.loadUrl(url)
+                                }
+                                .padding(6.dp)
+                        ) {
+                            Text(text = emoji, fontSize = 24.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = ProtectedGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // URL input & back/forward control row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = { webViewInstance?.goBack() },
+                    enabled = webViewInstance?.canGoBack() == true,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Web Back",
+                        tint = if (webViewInstance?.canGoBack() == true) Color.White else CyberGreyMuted
+                    )
+                }
+
+                IconButton(
+                    onClick = { webViewInstance?.goForward() },
+                    enabled = webViewInstance?.canGoForward() == true,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = "Web Forward",
+                        tint = if (webViewInstance?.canGoForward() == true) Color.White else CyberGreyMuted
+                    )
+                }
+
+                OutlinedTextField(
+                    value = urlInput,
+                    onValueChange = { urlInput = it },
+                    textStyle = MaterialTheme.typography.bodySmall.copy(color = Color.White, fontFamily = FontFamily.Monospace),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = BorderInactive,
+                        focusedBorderColor = ProtectedGreen,
+                        cursorColor = ProtectedGreen
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .testTag("browser_url_input"),
+                    singleLine = true,
+                    trailingIcon = {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = ProtectedGreen,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            IconButton(onClick = { webViewInstance?.reload() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Reload",
+                                    tint = CyberGreyLight,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                )
+
+                Button(
+                    onClick = {
+                        var target = urlInput.trim()
+                        if (!target.startsWith("http://") && !target.startsWith("https://")) {
+                            target = "https://$target"
+                        }
+                        urlInput = target
+                        webViewInstance?.loadUrl(target)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ProtectedGreen),
+                    modifier = Modifier.height(48.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("GO", color = Color.Black, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            // Progress bar
+            if (progress < 1.0f && isLoading) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp),
+                    color = ProtectedGreen,
+                    trackColor = Color.Transparent,
+                )
+            } else {
+                Spacer(modifier = Modifier.height(2.dp))
+            }
+
+            // WebView Box
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(8.dp)
+                    .background(Color.White, RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { ctx ->
+                        android.webkit.WebView(ctx).apply {
+                            settings.apply {
+                                javaScriptEnabled = true
+                                domStorageEnabled = true
+                                useWideViewPort = true
+                                loadWithOverviewMode = true
+                                databaseEnabled = true
+                                mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            }
+                            webViewClient = object : android.webkit.WebViewClient() {
+                                override fun onPageStarted(
+                                    view: android.webkit.WebView?,
+                                    url: String?,
+                                    favicon: android.graphics.Bitmap?
+                                ) {
+                                    super.onPageStarted(view, url, favicon)
+                                    isLoading = true
+                                    url?.let { urlInput = it }
+                                }
+
+                                override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    isLoading = false
+                                    progress = 1f
+                                    url?.let { urlInput = it }
+                                }
+
+                                override fun shouldOverrideUrlLoading(
+                                    view: android.webkit.WebView?,
+                                    request: android.webkit.WebResourceRequest?
+                                ): Boolean {
+                                    val uri = request?.url
+                                    uri?.let {
+                                        val urlStr = it.toString()
+                                        urlInput = urlStr
+                                        view?.loadUrl(urlStr)
+                                    }
+                                    return true
+                                }
+                            }
+                            webChromeClient = object : android.webkit.WebChromeClient() {
+                                override fun onProgressChanged(view: android.webkit.WebView?, newProgress: Int) {
+                                    super.onProgressChanged(view, newProgress)
+                                    progress = newProgress.toFloat() / 100f
+                                }
+                            }
+                            loadUrl(urlInput)
+                            webViewInstance = this
+                        }
+                    },
+                    update = { view ->
+                        webViewInstance = view
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }

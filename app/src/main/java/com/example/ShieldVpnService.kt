@@ -105,14 +105,30 @@ class ShieldVpnService : VpnService() {
         try {
             Log.d("ShieldVpnService", "Establishing Secure Shield Tunnel to $serverName ($serverIp)")
             
+            val prefs = getSharedPreferences("secure_shield_prefs", Context.MODE_PRIVATE)
+            val vpnMode = prefs.getString("vpn_mode", "sandbox") ?: "sandbox"
+            val proxyHost = prefs.getString("proxy_host", "") ?: ""
+            val proxyPort = prefs.getInt("proxy_port", 8080)
+
             // Build the local virtual network interface parameters
             val builder = Builder()
                 .setSession("Secure Shield Connection")
                 .setMtu(1420)
                 .addAddress("10.8.0.2", 32)
-                .addRoute("10.8.0.0", 24) // Route only the local virtual subnet to prevent black-holing public traffic (ensures YouTube, FB, and Google work normally)
+                .addRoute("10.8.0.0", 24) // Route only the local virtual subnet to prevent black-holing public traffic
 
-            val prefs = getSharedPreferences("secure_shield_prefs", Context.MODE_PRIVATE)
+            // Dynamically apply real System-wide Proxy Routing if configured
+            if (vpnMode == "proxy" && proxyHost.isNotEmpty()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        builder.setHttpProxy(android.net.ProxyInfo.buildDirectProxy(proxyHost, proxyPort))
+                        Log.d("ShieldVpnService", "Successfully provisioned System-Wide proxy over VPN: $proxyHost:$proxyPort")
+                    } catch (e: Exception) {
+                        Log.e("ShieldVpnService", "Failed to apply system proxy configurations", e)
+                    }
+                }
+            }
+
             val killSwitch = prefs.getBoolean("kill_switch_enabled", false)
             val splitTunnel = prefs.getBoolean("split_tunneling_enabled", false)
             val splitPackages = prefs.getStringSet("split_tunnel_packages", emptySet()) ?: emptySet()
@@ -136,6 +152,21 @@ class ShieldVpnService : VpnService() {
             // On some platforms or emulator versions, establishing directly might need specific configuration
             vpnInterface = builder.establish()
             Log.d("ShieldVpnService", "TUN interface established successfully: $vpnInterface")
+            
+            // Execute automated TCP endpoint handshake probe for debugging connectivity barriers
+            serviceScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val targetHost = if (vpnMode == "proxy" && proxyHost.isNotEmpty()) proxyHost else serverIp
+                    val targetPort = if (vpnMode == "proxy" && proxyHost.isNotEmpty()) proxyPort else 80
+                    Log.d("ShieldVpnService", "Probing target pathway reachability on $targetHost:$targetPort...")
+                    val socket = java.net.Socket()
+                    socket.connect(java.net.InetSocketAddress(targetHost, targetPort), 2500)
+                    socket.close()
+                    Log.d("ShieldVpnService", "Tunnel path route verified. Endpoint RESPONDED successfully.")
+                } catch (ex: Exception) {
+                    Log.e("ShieldVpnService", "Tunnel path probe encountered a route block: ${ex.localizedMessage}")
+                }
+            }
             
             // Update the active status notification to show secured connection details
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
