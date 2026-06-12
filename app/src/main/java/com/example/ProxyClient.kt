@@ -114,7 +114,7 @@ class ProxyClient(
                 }
             }
         } catch (e: Exception) {
-            Log.e(Exception, "Error forwarding traffic: ${e.message}", e)
+            Log.e(TAG, "Error forwarding traffic: ${e.message}", e)
         }
     }
 }
