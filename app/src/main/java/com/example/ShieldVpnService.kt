@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -21,8 +22,10 @@ import java.io.IOException
 class ShieldVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
+    private var packetProcessor: VpnPacketProcessor? = null
+    private var proxyClient: ProxyClient? = null
     private val serviceJob = Job()
-    private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    private val serviceScope = CoroutineScope(Dispatchers.Default + serviceJob)
 
     companion object {
         const val ACTION_CONNECT = "com.example.action.CONNECT"
@@ -103,7 +106,7 @@ class ShieldVpnService : VpnService() {
             
             val prefs = getSharedPreferences("secure_shield_prefs", Context.MODE_PRIVATE)
             val vpnMode = prefs.getString("vpn_mode", "sandbox") ?: "sandbox"
-            val proxyHost = prefs.getString("proxy_host", "") ?: ""
+            val proxyHost = prefs.getString("proxy_host", "8.8.8.8") ?: "8.8.8.8"
             val proxyPort = prefs.getInt("proxy_port", 8080)
 
             // Build the local virtual network interface parameters
@@ -111,19 +114,7 @@ class ShieldVpnService : VpnService() {
                 .setSession("Secure Shield Connection")
                 .setMtu(1420)
                 .addAddress("10.8.0.2", 32)
-                .addRoute("10.8.0.0", 24) // Route only the local virtual subnet to prevent black-holing public traffic
-
-            // Dynamically apply real System-wide Proxy Routing if configured
-            if (vpnMode == "proxy" && proxyHost.isNotEmpty()) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    try {
-                        builder.setHttpProxy(android.net.ProxyInfo.buildDirectProxy(proxyHost, proxyPort))
-                        Log.d("ShieldVpnService", "Successfully provisioned System-Wide proxy over VPN: $proxyHost:$proxyPort")
-                    } catch (e: Exception) {
-                        Log.e("ShieldVpnService", "Failed to apply system proxy configurations", e)
-                    }
-                }
-            }
+                .addRoute("0.0.0.0", 0) // Route all traffic through VPN
 
             val killSwitch = prefs.getBoolean("kill_switch_enabled", false)
             val splitTunnel = prefs.getBoolean("split_tunneling_enabled", false)
@@ -145,64 +136,77 @@ class ShieldVpnService : VpnService() {
                 }
             }
 
-            // On some platforms or emulator versions, establishing directly might need specific configuration
+            // Establish the VPN interface
             vpnInterface = builder.establish()
-            Log.d("ShieldVpnService", "TUN interface established successfully: $vpnInterface")
+            Log.d("ShieldVpnService", "TUN interface established successfully")
             
-            // Execute automated TCP endpoint handshake probe for debugging connectivity barriers
-            serviceScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    val targetHost = if (vpnMode == "proxy" && proxyHost.isNotEmpty()) proxyHost else serverIp
-                    val targetPort = if (vpnMode == "proxy" && proxyHost.isNotEmpty()) proxyPort else 80
-                    Log.d("ShieldVpnService", "Probing target pathway reachability on $targetHost:$targetPort...")
-                    val socket = java.net.Socket()
-                    socket.connect(java.net.InetSocketAddress(targetHost, targetPort), 2500)
-                    socket.close()
-                    Log.d("ShieldVpnService", "Tunnel path route verified. Endpoint RESPONDED successfully.")
-                } catch (ex: Exception) {
-                    Log.e("ShieldVpnService", "Tunnel path probe encountered a route block: ${ex.localizedMessage}")
-                }
-            }
+            // Initialize proxy client
+            proxyClient = ProxyClient(proxyHost, proxyPort)
             
-            // Update the active status notification to show secured connection details
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.notify(NOTIFICATION_ID, buildStatusNotification("Secured with $serverName"))
-
-            // Start a worker loop to consume incoming interface traffic (simulation loop / dummy reader)
+            // Start packet processing in background
             serviceScope.launch {
                 try {
-                    while (vpnInterface != null) {
-                        // In a real VPN client, we read packets from vpnInterface.fileDescriptor here.
-                        // For our secure visualization shield, keeping the handle open establishes the tunnel session.
-                        delay(1000)
+                    // Connect to proxy server
+                    if (proxyClient?.connect() == true) {
+                        Log.d("ShieldVpnService", "Connected to proxy: $proxyHost:$proxyPort")
+                        
+                        // Create and start packet processor
+                        vpnInterface?.let { iface ->
+                            packetProcessor = VpnPacketProcessor(iface, proxyHost, proxyPort)
+                            packetProcessor?.startProcessing()
+                        }
+                    } else {
+                        Log.e("ShieldVpnService", "Failed to connect to proxy server")
+                        updateNotification("Failed to connect to proxy. Unsecured.")
+                        disconnectVpn()
                     }
-                } catch (e: InterruptedException) {
-                    Log.d("ShieldVpnService", "Worker thread interrupted")
+                } catch (e: Exception) {
+                    Log.e("ShieldVpnService", "Error in packet processing: ${e.message}", e)
+                    disconnectVpn()
                 }
             }
+            
+            // Update notification
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(NOTIFICATION_ID, buildStatusNotification("Secured with $serverName - Routing through $proxyHost"))
+            
         } catch (e: Exception) {
             Log.e("ShieldVpnService", "Failed to establish VPN TUN interface", e)
             disconnectVpn()
-            
-            // Show failure on the notification before stopping
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.notify(NOTIFICATION_ID, buildStatusNotification("Failed to resolve handshake. Unsecured."))
+            updateNotification("Failed to establish tunnel. Unsecured.")
         }
+    }
+    
+    private fun updateNotification(statusText: String) {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(NOTIFICATION_ID, buildStatusNotification(statusText))
     }
 
     private fun disconnectVpn() {
         try {
+            packetProcessor?.let { processor ->
+                serviceScope.launch {
+                    processor.shutdown()
+                }
+            }
+            proxyClient?.let { client ->
+                serviceScope.launch {
+                    client.disconnect()
+                }
+            }
             vpnInterface?.close()
         } catch (e: IOException) {
             Log.e("ShieldVpnService", "Error closing VPN interface", e)
         } finally {
             vpnInterface = null
+            packetProcessor = null
+            proxyClient = null
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        serviceJob.cancel()
         disconnectVpn()
+        serviceScope.cancel()
     }
 }
